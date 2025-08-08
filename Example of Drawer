@@ -1,1 +1,103 @@
+import 'package:flutter/material.dart';
 
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Drawer Example',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: MyHomePage(),
+    );
+  }
+}
+
+class MyHomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Drawer Example'),
+      ),
+      // الدرج الأساسي (من الجانب الأيسر)
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero, // إزالة الحشوة الافتراضية
+          children: <Widget>[
+            // رأس الدرج
+            UserAccountsDrawerHeader(
+              accountName: Text('Dr. Hussein Alkhader'),
+              accountEmail: Text('alhussein1977@gmail.com'),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Image.asset('images/mypicture.png'),
+              ),
+              decoration: BoxDecoration(
+                color: Colors.blue,
+              ),
+            ),
+            // عناصر القائمة
+            ListTile(
+              leading: Icon(Icons.home),
+              title: Text('الصفحة الرئيسية'),
+              onTap: () {
+                Navigator.pop(context); // إغلاق الدرج
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => HomePage()));
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.settings),
+              title: Text('الإعدادات'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => SettingsPage()));
+              },
+            ),
+            Divider(), // خط فاصل
+            ListTile(
+              leading: Icon(Icons.exit_to_app),
+              title: Text('تسجيل الخروج'),
+              onTap: () {
+                // إجراءات تسجيل الخروج
+              },
+            ),
+          ],
+        ),
+      ),
+      body: Center(
+        child: Text('المحتوى الرئيسي للتطبيق'),
+      ),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('الصفحة الرئيسية')),
+      body: Center(child: Text('مرحبًا بك في الصفحة الرئيسية')),
+    );
+  }
+}
+
+class SettingsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('صفحة الإعدادات')),
+      body: Center(child: Text('إعدادات التطبيق')),
+    );
+  }
+}
+
+//ملاحظات:
+//لا تنسي ان تضيف صورة شخصية لك او اي صورة في مجلد images بعد ان تعمل على اضافة المجلد بالمشروع
+//كذلك عرف الصورة ضمن assest في ملف .yaml
