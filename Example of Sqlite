@@ -1,0 +1,321 @@
+// main.dart
+
+import 'package:flutter/material.dart';
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart'; // لإدارة تنسيق التاريخ
+import 'package:flutter_localizations/flutter_localizations.dart'; // <-- السطر الذي تم إضافته لحل المشكلة
+
+// --- نقطة بداية التطبيق ---
+void main() {
+  // التأكد من تهيئة الـ Widgets قبل تشغيل التطبيق
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const StudentsDBApp());
+}
+
+// --- 1. الـ Model Class لتعريف الطالب ---
+class Student {
+  final int? id; // يمكن أن يكون null عند الإنشاء لأول مرة
+  final String name;
+  final String dateOfBirth;
+
+  Student({this.id, required this.name, required this.dateOfBirth});
+
+  // تحويل الكائن إلى Map لتخزينه في قاعدة البيانات
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'dateOfBirth': dateOfBirth,
+    };
+  }
+
+  // للمساعدة في طباعة بيانات الكائن بشكل مقروء
+  @override
+  String toString() {
+    return 'Student{id: $id, name: $name, dateOfBirth: $dateOfBirth}';
+  }
+}
+
+// --- 2. كلاس مساعد للتعامل مع قاعدة البيانات ---
+class DatabaseHelper {
+  static Database? _database;
+  static const String dbName = 'students.db';
+  static const String tableName = 'students';
+
+  // Getter للحصول على نسخة من قاعدة البيانات
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB();
+    return _database!;
+  }
+
+  // تهيئة قاعدة البيانات
+  _initDB() async {
+    String path = join(await getDatabasesPath(), dbName);
+    return await openDatabase(path, version: 1, onCreate: _onCreate);
+  }
+
+  // دالة تُستدعى عند إنشاء قاعدة البيانات لأول مرة لإنشاء الجداول
+  Future _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE $tableName (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        dateOfBirth TEXT NOT NULL
+      )
+    ''');
+  }
+
+  // --- عمليات CRUD ---
+
+  // إضافة طالب جديد
+  Future<int> insertStudent(Student student) async {
+    Database db = await database;
+    return await db.insert(tableName, student.toMap());
+  }
+
+  // تعديل بيانات طالب
+  Future<int> updateStudent(Student student) async {
+    Database db = await database;
+    return await db.update(
+      tableName,
+      student.toMap(),
+      where: 'id = ?',
+      whereArgs: [student.id],
+    );
+  }
+
+  // حذف طالب
+  Future<int> deleteStudent(int id) async {
+    Database db = await database;
+    return await db.delete(
+      tableName,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // استعلام عن كل الطلاب
+  Future<List<Student>> getStudents() async {
+    Database db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(tableName);
+
+    // تحويل قائمة الـ Maps إلى قائمة من كائنات Student
+    return List.generate(maps.length, (i) {
+      return Student(
+        id: maps[i]['id'],
+        name: maps[i]['name'],
+        dateOfBirth: maps[i]['dateOfBirth'],
+      );
+    });
+  }
+}
+
+// --- 3. واجهة المستخدم الرئيسية ---
+class StudentsDBApp extends StatelessWidget {
+  const StudentsDBApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'إدارة بيانات الطلاب',
+      theme: ThemeData(
+        primarySwatch: Colors.indigo,
+        fontFamily: 'Tajawal',
+      ),
+      home: const StudentListScreen(),
+      debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ar', ''), // العربية
+      ],
+    );
+  }
+}
+
+class StudentListScreen extends StatefulWidget {
+  const StudentListScreen({super.key});
+
+  @override
+  State<StudentListScreen> createState() => _StudentListScreenState();
+}
+
+class _StudentListScreenState extends State<StudentListScreen> {
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  List<Student> _students = [];
+
+  final _idController = TextEditingController();
+  final _nameController = TextEditingController();
+  DateTime? _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshStudentList();
+  }
+
+  // دالة لتحديث قائمة الطلاب من قاعدة البيانات وعرضها
+  void _refreshStudentList() async {
+    final data = await _dbHelper.getStudents();
+    setState(() {
+      _students = data;
+    });
+  }
+
+  // دالة لعرض منتقي التاريخ
+  void _pickDate() async {
+    DateTime? pickedDate = await showDatePicker(
+      context: this.context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1980),
+      lastDate: DateTime.now(),
+    );
+    if (pickedDate != null) {
+      setState(() {
+        _selectedDate = pickedDate;
+      });
+    }
+  }
+
+  // دالة لتنظيف حقول الإدخال
+  void _clearFields() {
+    _idController.clear();
+    _nameController.clear();
+    setState(() {
+      _selectedDate = null;
+    });
+  }
+
+  // دالة لملء الحقول عند الضغط على عنصر في القائمة
+  void _populateFields(Student student) {
+    _idController.text = student.id.toString();
+    _nameController.text = student.name;
+    setState(() {
+      _selectedDate = DateTime.parse(student.dateOfBirth);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('قاعدة بيانات الطلاب'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // --- حقول الإدخال ---
+            TextField(
+              controller: _idController,
+              decoration: const InputDecoration(
+                labelText: 'رقم الطالب',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'اسم الطالب',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedDate == null
+                        ? 'لم يتم اختيار تاريخ ميلاد'
+                        : 'تاريخ الميلاد: ${DateFormat('yyyy-MM-dd').format(_selectedDate!)}',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _pickDate,
+                  child: const Text('اختيار التاريخ'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // --- أزرار العمليات ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    if (_idController.text.isNotEmpty &&
+                        _nameController.text.isNotEmpty &&
+                        _selectedDate != null) {
+                      await _dbHelper.insertStudent(Student(
+                        id: int.parse(_idController.text),
+                        name: _nameController.text,
+                        dateOfBirth:
+                            DateFormat('yyyy-MM-dd').format(_selectedDate!),
+                      ));
+                      _clearFields();
+                      _refreshStudentList();
+                    }
+                  },
+                  child: const Text('إضافة'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (_idController.text.isNotEmpty) {
+                      await _dbHelper.updateStudent(Student(
+                        id: int.parse(_idController.text),
+                        name: _nameController.text,
+                        dateOfBirth:
+                            DateFormat('yyyy-MM-dd').format(_selectedDate!),
+                      ));
+                      _clearFields();
+                      _refreshStudentList();
+                    }
+                  },
+                  child: const Text('تعديل'),
+                ),
+                ElevatedButton(
+                  onPressed: _refreshStudentList,
+                  child: const Text('استعلام'),
+                ),
+              ],
+            ),
+            const Divider(height: 30),
+
+            // --- قائمة الطلاب ---
+            Expanded(
+              child: ListView.builder(
+                itemCount: _students.length,
+                itemBuilder: (context, index) {
+                  final student = _students[index];
+                  return Card(
+                    child: ListTile(
+                      onTap: () => _populateFields(student),
+                      leading: CircleAvatar(child: Text(student.id.toString())),
+                      title: Text(student.name),
+                      subtitle: Text('تاريخ الميلاد: ${student.dateOfBirth}'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          await _dbHelper.deleteStudent(student.id!);
+                          _refreshStudentList();
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
